@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>なつかしクイズ - 頭の体操</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+      background: #e0e5ec;
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+    .neu-btn {
+      background: #e0e5ec;
+      box-shadow: 8px 8px 16px #b8bcc2, -8px -8px 16px #ffffff;
+      transition: all 0.2s ease;
+    }
+    .neu-btn:active {
+      box-shadow: 4px 4px 8px #b8bcc2, -4px -4px 8px #ffffff;
+      transform: scale(0.98);
+    }
+    .neu-btn-sm {
+      background: #e0e5ec;
+      box-shadow: 6px 6px 12px #b8bcc2, -6px -6px 12px #ffffff;
+    }
+    .neu-card {
+      background: #e0e5ec;
+      box-shadow: 12px 12px 24px #b8bcc2, -12px -12px 24px #ffffff;
+    }
+    .neu-inset {
+      background: #e0e5ec;
+      box-shadow: inset 6px 6px 12px #b8bcc2, inset -6px -6px 12px #ffffff;
+    }
+    .neu-progress {
+      background: #e0e5ec;
+      box-shadow: inset 4px 4px 8px #b8bcc2, inset -4px -4px 8px #ffffff;
+    }
+    .correct-btn {
+      background: linear-gradient(145deg, #86efac, #4ade80);
+      box-shadow: 8px 8px 16px #b8bcc2, -8px -8px 16px #ffffff;
+    }
+    .wrong-btn {
+      background: linear-gradient(145deg, #fca5a5, #f87171);
+      box-shadow: 8px 8px 16px #b8bcc2, -8px -8px 16px #ffffff;
+    }
+    .selected-female {
+      background: linear-gradient(145deg, #fce7f3, #fbcfe8);
+      box-shadow: inset 4px 4px 8px #d1d5db, inset -4px -4px 8px #ffffff;
+    }
+    .selected-male {
+      background: linear-gradient(145deg, #dbeafe, #bfdbfe);
+      box-shadow: inset 4px 4px 8px #d1d5db, inset -4px -4px 8px #ffffff;
+    }
+    .submit-btn-active {
+      background: linear-gradient(145deg, #bbf7d0, #86efac);
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .animate-bounce {
+      animation: bounce 0.6s ease infinite;
+    }
+    .animate-pulse {
+      animation: pulse 0.8s ease infinite;
+    }
+    input::placeholder {
+      color: #9ca3af;
+    }
+    input:focus {
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // アプリの状態管理
+    const state = {
+      // 画面制御
+      screen: 'welcome', // 'welcome', 'nameInput', 'categorySelect', 'quiz', 'result'
+      // 名前関連
+      userName: '',
+      userGender: null, // 'female' or 'male'
+      // クイズ関連
+      currentQ: 0,
+      score: 0,
+      streak: 0,
+      feedback: null,
+      selectedAnswer: null,
+      showHint: false,
+      category: null,
+      questions: []
+    };
+
+    // 下の名前だけを取得（苗字を除く）
+    function getFirstName(fullName) {
+      if (!fullName) return '';
+      const trimmed = fullName.trim();
+      const parts = trimmed.split(/[\s　]+/);
+      if (parts.length >= 2) {
+        return parts[parts.length - 1];
+      }
+      return trimmed;
+    }
+
+    // 敬称付きの名前を取得
+    function getDisplayName() {
+      if (!state.userName) return '';
+      const firstName = getFirstName(state.userName);
+      const suffix = state.userGender === 'female' ? 'ちゃん' : 'くん';
+      return firstName + suffix;
+    }
+
+    // 問題データ（各20問）
+    const allQuestions = {
+      showa: [
+        { q: "「巨人の星」の主人公の名前は？", choices: ["星 飛雄馬", "星 一徹", "花形 満", "伴 宙太"], answer: 0, hint: "お父さんは一徹です", era: "昭和40年代" },
+        { q: "「三丁目の夕日」の舞台になった時代は？", choices: ["昭和30年代", "昭和40年代", "昭和50年代", "大正時代"], answer: 0, hint: "東京タワーができた頃", era: "昭和30年代" },
+        { q: "「サザエさん」の弟の名前は？", choices: ["カツオ", "タラオ", "マスオ", "波平"], answer: 0, hint: "魚の名前です", era: "昭和20年代〜" },
+        { q: "昭和39年、東京で開かれた大きなイベントは？", choices: ["オリンピック", "万博", "花博", "国体"], answer: 0, hint: "スポーツの祭典です", era: "昭和39年" },
+        { q: "「おしん」の主人公の出身地は？", choices: ["山形県", "新潟県", "秋田県", "青森県"], answer: 0, hint: "さくらんぼが有名な県", era: "昭和58年" },
+        { q: "美空ひばりさんの代表曲「川の流れのように」は何川をイメージ？", choices: ["隅田川", "多摩川", "利根川", "荒川"], answer: 0, hint: "東京の下町を流れる川", era: "昭和63年" },
+        { q: "「男はつらいよ」の寅さんの故郷は？", choices: ["柴又", "浅草", "上野", "深川"], answer: 0, hint: "帝釈天があるところ", era: "昭和44年〜" },
+        { q: "昭和45年の大阪万博のシンボルは？", choices: ["太陽の塔", "通天閣", "大阪城", "万博タワー"], answer: 0, hint: "岡本太郎さんの作品", era: "昭和45年" },
+        { q: "「ちびまる子ちゃん」の舞台は何県？", choices: ["静岡県", "愛知県", "神奈川県", "東京都"], answer: 0, hint: "富士山が見える県", era: "昭和40年代設定" },
+        { q: "「鉄腕アトム」の生みの親は？", choices: ["手塚治虫", "藤子不二雄", "石ノ森章太郎", "赤塚不二夫"], answer: 0, hint: "漫画の神様と呼ばれた方", era: "昭和38年" },
+        { q: "昭和33年に完成した東京のシンボルは？", choices: ["東京タワー", "スカイツリー", "東京駅", "国会議事堂"], answer: 0, hint: "333メートルの高さ", era: "昭和33年" },
+        { q: "「8時だョ！全員集合」の司会者は？", choices: ["いかりや長介", "加藤茶", "志村けん", "仲本工事"], answer: 0, hint: "ドリフターズのリーダー", era: "昭和44年〜" },
+        { q: "石原裕次郎さんの代表曲は？", choices: ["嵐を呼ぶ男", "北の旅人", "時の流れに身をまかせ", "津軽海峡冬景色"], answer: 0, hint: "ドラムを叩く映画の主題歌", era: "昭和32年" },
+        { q: "昭和の三種の神器でないものは？", choices: ["エアコン", "テレビ", "洗濯機", "冷蔵庫"], answer: 0, hint: "当時はまだ普及していなかった", era: "昭和30年代" },
+        { q: "「水戸黄門」の決め台詞「この○○が目に入らぬか」", choices: ["印籠", "紋所", "家紋", "証文"], answer: 0, hint: "葵の御紋が入っています", era: "昭和44年〜" },
+        { q: "長嶋茂雄選手の背番号は？", choices: ["3", "1", "5", "7"], answer: 0, hint: "ミスター・ジャイアンツ", era: "昭和33年〜" },
+        { q: "「となりのトトロ」に出てくる乗り物は？", choices: ["ネコバス", "イヌバス", "クマバス", "ウサギバス"], answer: 0, hint: "12本足の動物です", era: "昭和63年" },
+        { q: "「忠犬ハチ公」の犬種は？", choices: ["秋田犬", "柴犬", "土佐犬", "甲斐犬"], answer: 0, hint: "東北地方の犬", era: "昭和初期" },
+        { q: "「ゲゲゲの鬼太郎」の作者は？", choices: ["水木しげる", "手塚治虫", "藤子不二雄", "横山光輝"], answer: 0, hint: "境港出身の漫画家", era: "昭和43年" },
+        { q: "昭和天皇の在位は何年間？", choices: ["62年", "45年", "50年", "70年"], answer: 0, hint: "日本史上最長でした", era: "昭和元年〜64年" },
+      ],
+      food: [
+        { q: "「カレーライス」の具材として定番でないものは？", choices: ["たけのこ", "じゃがいも", "にんじん", "たまねぎ"], answer: 0, hint: "春に採れる野菜です", era: "定番料理" },
+        { q: "「七草がゆ」を食べるのはいつ？", choices: ["1月7日", "1月1日", "1月15日", "2月3日"], answer: 0, hint: "松の内が終わる頃", era: "日本の伝統" },
+        { q: "おせち料理の「黒豆」に込められた願いは？", choices: ["まめに働く", "お金持ちになる", "長生きする", "子宝に恵まれる"], answer: 0, hint: "「まめ」という言葉がヒント", era: "日本の伝統" },
+        { q: "「ラムネ」のビンの中に入っているものは？", choices: ["ビー玉", "あめ玉", "氷", "レモン"], answer: 0, hint: "子どもが欲しがるもの", era: "昭和の駄菓子" },
+        { q: "昔の「かき氷」の定番の味は？", choices: ["いちご", "チョコレート", "抹茶", "マンゴー"], answer: 0, hint: "赤い色です", era: "夏の風物詩" },
+        { q: "「土用の丑の日」に食べる定番は？", choices: ["うなぎ", "うどん", "うめぼし", "うに"], answer: 0, hint: "「う」のつく食べ物", era: "日本の伝統" },
+        { q: "「お雑煮」に入れるお餅の形、関東は？", choices: ["四角", "丸", "三角", "細長い"], answer: 0, hint: "関西は丸餅です", era: "正月料理" },
+        { q: "「ちらし寿司」を食べる行事は？", choices: ["ひなまつり", "こどもの日", "七夕", "お盆"], answer: 0, hint: "3月の女の子の節句", era: "日本の伝統" },
+        { q: "「肉じゃが」発祥の地と言われるのは？", choices: ["舞鶴", "横須賀", "佐世保", "呉"], answer: 0, hint: "京都府の港町", era: "明治時代〜" },
+        { q: "「たくあん」は何を漬けたもの？", choices: ["大根", "きゅうり", "白菜", "なす"], answer: 0, hint: "冬に干す野菜", era: "日本の伝統" },
+        { q: "「おはぎ」と「ぼたもち」、春に食べるのは？", choices: ["ぼたもち", "おはぎ", "どちらも", "季節関係ない"], answer: 0, hint: "牡丹の花の季節", era: "日本の伝統" },
+        { q: "「冷やし中華」が始まる季節は？", choices: ["夏", "春", "秋", "冬"], answer: 0, hint: "暑い季節に食べたい", era: "昭和の食文化" },
+        { q: "「駄菓子屋」でよく売っていた飲み物は？", choices: ["粉ジュース", "コーラ", "牛乳", "お茶"], answer: 0, hint: "水で溶かして飲む", era: "昭和の駄菓子" },
+        { q: "「梅干し」を作る季節は？", choices: ["梅雨", "春", "秋", "冬"], answer: 0, hint: "雨の多い季節", era: "日本の伝統" },
+        { q: "「年越しそば」を食べる理由は？", choices: ["長寿を願う", "金運アップ", "厄除け", "健康祈願"], answer: 0, hint: "細く長いから", era: "日本の伝統" },
+        { q: "「栗ご飯」を食べる季節は？", choices: ["秋", "春", "夏", "冬"], answer: 0, hint: "収穫の季節", era: "秋の味覚" },
+        { q: "「お彼岸」に供える定番のお菓子は？", choices: ["おはぎ", "まんじゅう", "せんべい", "ようかん"], answer: 0, hint: "あんこを使った和菓子", era: "日本の伝統" },
+        { q: "「節分」に食べる太巻きの名前は？", choices: ["恵方巻", "太巻き寿司", "鉄火巻", "かっぱ巻"], answer: 0, hint: "ある方角を向いて食べる", era: "日本の伝統" },
+        { q: "「ナポリタン」発祥の地は？", choices: ["横浜", "東京", "大阪", "神戸"], answer: 0, hint: "港町のホテルで生まれた", era: "昭和の洋食" },
+        { q: "「学校給食」で人気だった揚げパンの中身は？", choices: ["きなこ", "あんこ", "クリーム", "ジャム"], answer: 0, hint: "大豆から作る粉", era: "昭和の給食" },
+      ],
+      culture: [
+        { q: "「いろはにほへと」の次に来るのは？", choices: ["ちりぬるを", "わかよたれそ", "つねならむ", "あさきゆめみし"], answer: 0, hint: "散って落ちるもの", era: "日本の伝統" },
+        { q: "「桃太郎」のお供は犬、猿と何？", choices: ["きじ", "うさぎ", "たぬき", "かめ"], answer: 0, hint: "鳥の仲間です", era: "昔話" },
+        { q: "「一寸法師」はどこから生まれた？", choices: ["おばあさんの指", "桃の中", "竹の中", "川から"], answer: 0, hint: "とても小さく生まれました", era: "昔話" },
+        { q: "「七夕」で願い事を書くのは何に？", choices: ["短冊", "絵馬", "おみくじ", "だるま"], answer: 0, hint: "笹に飾ります", era: "日本の伝統" },
+        { q: "「お月見」に飾る団子の数は？", choices: ["15個", "10個", "20個", "7個"], answer: 0, hint: "十五夜にちなんで", era: "日本の伝統" },
+        { q: "「紅白歌合戦」が始まったのは？", choices: ["昭和26年", "昭和20年", "昭和35年", "昭和45年"], answer: 0, hint: "戦後まもなくです", era: "昭和26年〜" },
+        { q: "「かぐや姫」はどこで見つかった？", choices: ["竹の中", "桃の中", "川の中", "森の中"], answer: 0, hint: "光る植物の中", era: "昔話" },
+        { q: "「浦島太郎」が助けた動物は？", choices: ["亀", "魚", "鳥", "犬"], answer: 0, hint: "海の生き物", era: "昔話" },
+        { q: "「こどもの日」に飾るものは？", choices: ["こいのぼり", "ひな人形", "門松", "しめ縄"], answer: 0, hint: "空を泳ぐもの", era: "日本の伝統" },
+        { q: "「お正月」に飾る植物は松と竹と？", choices: ["梅", "桜", "菊", "藤"], answer: 0, hint: "松竹○", era: "日本の伝統" },
+        { q: "「花咲かじいさん」が咲かせた花は？", choices: ["桜", "梅", "桃", "菊"], answer: 0, hint: "日本を代表する花", era: "昔話" },
+        { q: "「金太郎」が住んでいた山は？", choices: ["足柄山", "富士山", "筑波山", "高尾山"], answer: 0, hint: "神奈川県と静岡県の境", era: "昔話" },
+        { q: "「成人式」は何歳のお祝い？", choices: ["20歳", "18歳", "25歳", "15歳"], answer: 0, hint: "大人になる節目（現在は18歳）", era: "日本の伝統" },
+        { q: "「七五三」でお参りしない年齢は？", choices: ["4歳", "3歳", "5歳", "7歳"], answer: 0, hint: "奇数の年齢をお祝い", era: "日本の伝統" },
+        { q: "「除夜の鐘」は何回つく？", choices: ["108回", "100回", "112回", "88回"], answer: 0, hint: "煩悩の数", era: "日本の伝統" },
+        { q: "「舌切り雀」でおばあさんがもらったつづらは？", choices: ["大きいつづら", "小さいつづら", "中くらい", "両方"], answer: 0, hint: "欲張った方", era: "昔話" },
+        { q: "「さるかに合戦」でかにの敵を討ったのは？", choices: ["栗・蜂・臼", "犬・猿・雉", "亀・鶴・蛙", "狸・狐・熊"], answer: 0, hint: "小さな仲間たち", era: "昔話" },
+        { q: "「端午の節句」に飾る花は？", choices: ["菖蒲", "桜", "梅", "藤"], answer: 0, hint: "お風呂にも入れます", era: "日本の伝統" },
+        { q: "「お盆」に先祖の霊が乗ってくるものは？", choices: ["きゅうりの馬", "なすの馬", "大根の馬", "にんじんの馬"], answer: 0, hint: "早く来てほしいから", era: "日本の伝統" },
+        { q: "「干支」で最初の動物は？", choices: ["ねずみ", "うし", "とら", "うさぎ"], answer: 0, hint: "一番小さいけど賢かった", era: "日本の伝統" },
+      ],
+      proverb: [
+        { q: "「猿も木から○○○」", choices: ["落ちる", "登る", "降りる", "飛ぶ"], answer: 0, hint: "上手な人も失敗することがある", era: "ことわざ" },
+        { q: "「石の上にも○○」", choices: ["三年", "十年", "百年", "一年"], answer: 0, hint: "辛抱強く続けること", era: "ことわざ" },
+        { q: "「花より○○○」", choices: ["団子", "酒", "月", "雪"], answer: 0, hint: "食べ物です", era: "ことわざ" },
+        { q: "「早起きは三文の○○」", choices: ["徳", "得", "特", "毒"], answer: 0, hint: "いいことがある", era: "ことわざ" },
+        { q: "「七転び○○起き」", choices: ["八", "七", "九", "十"], answer: 0, hint: "転んだ数より多い", era: "ことわざ" },
+        { q: "「笑う門には○○来る」", choices: ["福", "運", "金", "春"], answer: 0, hint: "幸せが来る", era: "ことわざ" },
+        { q: "「犬も歩けば○○に当たる」", choices: ["棒", "石", "人", "木"], answer: 0, hint: "思いがけないことが起こる", era: "ことわざ" },
+        { q: "「頭隠して○○隠さず」", choices: ["尻", "足", "手", "耳"], answer: 0, hint: "鳥の雉のように", era: "ことわざ" },
+        { q: "「三人寄れば○○の知恵」", choices: ["文殊", "仏", "神", "天"], answer: 0, hint: "仏教の菩薩様", era: "ことわざ" },
+        { q: "「塵も積もれば○○となる」", choices: ["山", "川", "海", "森"], answer: 0, hint: "高く積み上がる", era: "ことわざ" },
+        { q: "「急がば○○○」", choices: ["回れ", "走れ", "止まれ", "進め"], answer: 0, hint: "近道より確実な道", era: "ことわざ" },
+        { q: "「鬼に○○○」", choices: ["金棒", "角", "豆", "火"], answer: 0, hint: "強い者がさらに強くなる", era: "ことわざ" },
+        { q: "「目は口ほどに○○を言う」", choices: ["物", "事", "言葉", "心"], answer: 0, hint: "表情で伝わる", era: "ことわざ" },
+        { q: "「馬の耳に○○○」", choices: ["念仏", "歌", "風", "水"], answer: 0, hint: "言っても無駄", era: "ことわざ" },
+        { q: "「猫に○○○」", choices: ["小判", "魚", "鈴", "餌"], answer: 0, hint: "価値がわからない", era: "ことわざ" },
+        { q: "「雨降って○○固まる」", choices: ["地", "土", "道", "石"], answer: 0, hint: "困難の後は良くなる", era: "ことわざ" },
+        { q: "「弘法にも○○の誤り」", choices: ["筆", "字", "墨", "紙"], answer: 0, hint: "書道の達人でも", era: "ことわざ" },
+        { q: "「棚から○○○」", choices: ["ぼたもち", "まんじゅう", "おはぎ", "だんご"], answer: 0, hint: "思いがけない幸運", era: "ことわざ" },
+        { q: "「二階から○○○」", choices: ["目薬", "水", "石", "声"], answer: 0, hint: "もどかしいこと", era: "ことわざ" },
+        { q: "「百聞は一○○にしかず」", choices: ["見", "聞", "言", "知"], answer: 0, hint: "実際に見ることが大事", era: "ことわざ" },
+      ],
+    };
+
+    const categories = [
+      { id: 'showa', name: '昭和の思い出', icon: '📺' },
+      { id: 'food', name: '懐かしの味', icon: '🍙' },
+      { id: 'culture', name: '日本の文化', icon: '🎎' },
+      { id: 'proverb', name: 'ことわざ', icon: '📖' },
+    ];
+
+    // キャラクターの表情
+    function getCharacter() {
+      const name = getDisplayName();
+      if (state.feedback === 'correct') {
+        return { emoji: '😄', message: name ? `${name}、すばらしい！` : 'すばらしい！' };
+      }
+      if (state.feedback === 'wrong') {
+        return { emoji: '😊', message: name ? `${name}、惜しい！次は当たるわよ` : '惜しい！次は当たるわよ' };
+      }
+      if (state.streak >= 3) {
+        return { emoji: '🌟', message: name ? `${name}、絶好調ですね！` : '絶好調ですね！' };
+      }
+      return { emoji: '😊', message: name ? `${name}、考えてみましょう` : '考えてみましょう' };
+    }
+
+    // シャッフル関数
+    function shuffle(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    // カテゴリー選択
+    function selectCategory(catId) {
+      state.category = catId;
+      state.questions = shuffle(allQuestions[catId]);
+      state.screen = 'quiz';
+      state.currentQ = 0;
+      state.score = 0;
+      state.streak = 0;
+      state.feedback = null;
+      state.selectedAnswer = null;
+      state.showHint = false;
+      render();
+    }
+
+    // 回答処理
+    function handleAnswer(idx) {
+      if (state.feedback !== null) return;
+      
+      state.selectedAnswer = idx;
+      const correct = idx === state.questions[state.currentQ].answer;
+      state.feedback = correct ? 'correct' : 'wrong';
+      
+      if (correct) {
+        state.score += 10 + state.streak * 2;
+        state.streak += 1;
+      } else {
+        state.streak = 0;
+      }
+      
+      render();
+      
+      setTimeout(() => {
+        state.feedback = null;
+        state.selectedAnswer = null;
+        state.showHint = false;
+        if (state.currentQ < state.questions.length - 1) {
+          state.currentQ += 1;
+        } else {
+          state.screen = 'result';
+        }
+        render();
+      }, 2000);
+    }
+
+    // レンダリング関数
+    function render() {
+      const app = document.getElementById('app');
+      const name = getDisplayName();
+
+      // ウェルカム画面
+      if (state.screen === 'welcome') {
+        app.innerHTML = `
+          <div class="min-h-screen p-6 flex flex-col items-center justify-center">
+            <div class="text-center mb-8">
+              <div class="text-7xl mb-4">🧠✨</div>
+              <h1 class="text-3xl font-bold text-gray-700 mb-2" style="text-shadow: 2px 2px 4px rgba(255,255,255,0.8), -1px -1px 2px rgba(0,0,0,0.1)">
+                なつかしクイズ
+              </h1>
+              <p class="text-xl text-gray-600 mb-2">頭の体操をしましょう</p>
+            </div>
+
+            <div class="w-full max-w-md space-y-5">
+              <button onclick="state.screen = 'nameInput'; render();" class="w-full p-6 rounded-2xl neu-btn">
+                <div class="flex items-center justify-center gap-4">
+                  <span class="text-4xl">👋</span>
+                  <div class="text-left">
+                    <div class="text-2xl font-bold text-gray-700">お名前を登録する</div>
+                    <div class="text-gray-500">名前で呼びかけます</div>
+                  </div>
+                </div>
+              </button>
+
+              <button onclick="state.userName = ''; state.userGender = null; state.screen = 'categorySelect'; render();" class="w-full p-5 rounded-2xl neu-btn-sm">
+                <div class="flex items-center justify-center gap-3">
+                  <span class="text-3xl">▶️</span>
+                  <span class="text-xl font-bold text-gray-600">今すぐ始める</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // 名前入力画面
+      if (state.screen === 'nameInput') {
+        app.innerHTML = `
+          <div class="min-h-screen p-6 flex flex-col items-center justify-center">
+            <div class="text-center mb-6">
+              <div class="text-6xl mb-3">😊</div>
+              <h2 class="text-2xl font-bold text-gray-700">お名前を教えてね</h2>
+              <p class="text-lg text-gray-600 font-bold mt-2">下のお名前を入力してください</p>
+            </div>
+
+            <div class="w-full max-w-md space-y-6">
+              <div class="p-4 rounded-2xl neu-inset">
+                <input
+                  type="text"
+                  id="nameInput"
+                  placeholder="なまえ"
+                  class="w-full text-center text-2xl font-bold text-gray-700 bg-transparent outline-none py-3"
+                />
+              </div>
+
+              <div class="text-center mb-2">
+                <p class="text-lg text-gray-600 mb-3">性別を選んでね</p>
+                <div class="flex gap-4 justify-center">
+                  <button id="femaleBtn" onclick="selectGender('female');" class="flex-1 py-5 px-6 rounded-2xl text-xl font-bold text-gray-600 neu-btn-sm">
+                    <div class="text-4xl mb-1">👩</div>
+                    女性
+                  </button>
+                  <button id="maleBtn" onclick="selectGender('male');" class="flex-1 py-5 px-6 rounded-2xl text-xl font-bold text-gray-600 neu-btn-sm">
+                    <div class="text-4xl mb-1">👨</div>
+                    男性
+                  </button>
+                </div>
+              </div>
+
+              <button id="submitBtn" onclick="submitName();" class="w-full py-5 px-8 rounded-2xl text-2xl font-bold neu-btn text-gray-400" style="opacity: 0.6">
+                ✨ 決定
+              </button>
+
+              <button onclick="state.screen = 'welcome'; render();" class="w-full py-4 rounded-xl text-lg text-gray-500 neu-btn-sm">
+                ← 戻る
+              </button>
+
+              <button onclick="state.userName = ''; state.userGender = null; state.screen = 'categorySelect'; render();" class="w-full py-4 rounded-xl text-lg text-gray-500 neu-btn-sm">
+                ▶️ 今すぐ始める
+                <div class="text-sm text-gray-400 mt-1">※名前を入力しないで始める</div>
+              </button>
+            </div>
+          </div>
+        `;
+        
+        // 入力フィールドとボタンの設定
+        setTimeout(() => {
+          const input = document.getElementById('nameInput');
+          const submitBtn = document.getElementById('submitBtn');
+          const femaleBtn = document.getElementById('femaleBtn');
+          const maleBtn = document.getElementById('maleBtn');
+          let tempName = '';
+          let tempGender = null;
+          
+          if (input) {
+            input.focus();
+            input.addEventListener('input', function() {
+              tempName = this.value;
+              updateSubmitButton();
+            });
+          }
+          
+          window.selectGender = function(gender) {
+            tempGender = gender;
+            
+            // ボタンのスタイル更新
+            if (gender === 'female') {
+              femaleBtn.className = 'flex-1 py-5 px-6 rounded-2xl text-xl font-bold text-pink-600 selected-female';
+              maleBtn.className = 'flex-1 py-5 px-6 rounded-2xl text-xl font-bold text-gray-600 neu-btn-sm';
+            } else {
+              maleBtn.className = 'flex-1 py-5 px-6 rounded-2xl text-xl font-bold text-blue-600 selected-male';
+              femaleBtn.className = 'flex-1 py-5 px-6 rounded-2xl text-xl font-bold text-gray-600 neu-btn-sm';
+            }
+            updateSubmitButton();
+          };
+          
+          window.submitName = function() {
+            if (tempName.trim() && tempGender) {
+              state.userName = tempName.trim();
+              state.userGender = tempGender;
+              state.screen = 'categorySelect';
+              render();
+            }
+          };
+          
+          function updateSubmitButton() {
+            const canSubmit = tempName.trim() && tempGender;
+            if (submitBtn) {
+              submitBtn.style.opacity = canSubmit ? '1' : '0.6';
+              if (canSubmit) {
+                submitBtn.className = 'w-full py-5 px-8 rounded-2xl text-2xl font-bold text-green-600 submit-btn-active';
+              } else {
+                submitBtn.className = 'w-full py-5 px-8 rounded-2xl text-2xl font-bold neu-btn text-gray-400';
+              }
+            }
+          }
+        }, 50);
+        return;
+      }
+
+      // カテゴリー選択画面
+      if (state.screen === 'categorySelect') {
+        const greeting = name ? `${name}、今日も頭の体操しましょう！` : '頭の体操をしましょう';
+        const selectMsg = name ? `${name}、好きなジャンルを選んでね` : '好きなジャンルを選んでね';
+        
+        app.innerHTML = `
+          <div class="min-h-screen p-6 flex flex-col items-center justify-center">
+            <div class="text-center mb-8">
+              <div class="text-6xl mb-4">🧠✨</div>
+              <h1 class="text-3xl font-bold text-gray-700 mb-2" style="text-shadow: 2px 2px 4px rgba(255,255,255,0.8), -1px -1px 2px rgba(0,0,0,0.1)">
+                なつかしクイズ
+              </h1>
+              <p class="text-xl text-gray-600">${greeting}</p>
+            </div>
+
+            <div class="w-full max-w-md space-y-4">
+              <p class="text-center text-gray-600 text-lg mb-4">${selectMsg}</p>
+              ${categories.map(cat => `
+                <button onclick="selectCategory('${cat.id}');" class="w-full p-6 rounded-2xl text-left neu-btn">
+                  <div class="flex items-center gap-4">
+                    <span class="text-5xl">${cat.icon}</span>
+                    <div>
+                      <span class="text-2xl font-bold text-gray-700">${cat.name}</span>
+                      <div class="text-sm text-gray-500">全20問</div>
+                    </div>
+                  </div>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // 結果画面
+      if (state.screen === 'result') {
+        const correctCount = Math.round(state.score / 10);
+        const percentage = Math.round((correctCount / state.questions.length) * 100);
+        
+        let result;
+        if (percentage >= 80) {
+          result = { emoji: '🎉', text: name ? `${name}、素晴らしい！天才です！` : '素晴らしい！天才です！' };
+        } else if (percentage >= 60) {
+          result = { emoji: '😄', text: name ? `${name}、よくできました！` : 'よくできました！' };
+        } else if (percentage >= 40) {
+          result = { emoji: '😊', text: name ? `${name}、なかなか上手です！` : 'なかなか上手です！' };
+        } else {
+          result = { emoji: '💪', text: name ? `${name}、また挑戦しましょう！` : 'また挑戦しましょう！' };
+        }
+        
+        app.innerHTML = `
+          <div class="min-h-screen p-6 flex flex-col items-center justify-center">
+            <div class="w-full max-w-md text-center">
+              <div class="text-8xl mb-6 animate-bounce">${result.emoji}</div>
+              
+              <div class="p-8 rounded-3xl mb-6 neu-card">
+                <h2 class="text-3xl font-bold text-gray-700 mb-4">${result.text}</h2>
+                <div class="text-6xl font-bold text-gray-800 mb-2">${state.score}点</div>
+                <p class="text-xl text-gray-600">${state.questions.length}問中 正解率 ${percentage}%</p>
+              </div>
+
+              <div class="space-y-4">
+                <button onclick="selectCategory('${state.category}');" class="w-full py-5 px-8 rounded-2xl text-2xl font-bold text-gray-700 neu-btn">
+                  🔄 もう一度
+                </button>
+                <button onclick="state.screen = 'categorySelect'; render();" class="w-full py-5 px-8 rounded-2xl text-2xl font-bold text-gray-700 neu-btn">
+                  🏠 ジャンル選択へ
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // クイズ画面
+      if (state.screen === 'quiz') {
+        const currentQuestion = state.questions[state.currentQ];
+        const character = getCharacter();
+        const currentCat = categories.find(c => c.id === state.category);
+        const progress = ((state.currentQ + 1) / state.questions.length) * 100;
+        
+        const choiceLabels = ['あ', 'い', 'う', 'え'];
+        
+        let choicesHTML = currentQuestion.choices.map((choice, idx) => {
+          let btnClass = 'neu-btn text-gray-700';
+          let icon = '';
+          
+          if (state.feedback !== null) {
+            if (idx === currentQuestion.answer) {
+              btnClass = 'correct-btn text-white';
+              icon = '<span class="text-2xl">⭕</span>';
+            } else if (idx === state.selectedAnswer && state.feedback === 'wrong') {
+              btnClass = 'wrong-btn text-white';
+              icon = '<span class="text-2xl">❌</span>';
+            }
+          }
+          
+          return `
+            <button onclick="handleAnswer(${idx});" ${state.feedback !== null ? 'disabled' : ''} class="w-full py-5 px-6 rounded-2xl text-xl font-bold ${btnClass}">
+              <div class="flex items-center gap-4">
+                <span class="w-10 h-10 rounded-full flex items-center justify-center text-lg" style="background: rgba(255,255,255,0.3)">
+                  ${choiceLabels[idx]}
+                </span>
+                <span class="flex-1 text-left">${choice}</span>
+                ${icon}
+              </div>
+            </button>
+          `;
+        }).join('');
+        
+        let hintHTML = '';
+        if (!state.showHint && state.feedback === null) {
+          hintHTML = `
+            <div class="text-center mb-4">
+              <button onclick="state.showHint = true; render();" class="px-6 py-3 rounded-xl text-lg text-gray-500 neu-btn-sm">
+                💡 ヒントを見る
+              </button>
+            </div>
+          `;
+        } else if (state.showHint) {
+          hintHTML = `
+            <div class="mb-4 p-4 rounded-xl text-center text-lg text-amber-600 neu-progress">
+              💡 ${currentQuestion.hint}
+            </div>
+          `;
+        }
+        
+        let feedbackOverlay = '';
+        if (state.feedback) {
+          const overlayEmoji = state.feedback === 'correct' ? '🎉' : '😊';
+          const animClass = state.feedback === 'correct' ? 'animate-bounce' : 'animate-pulse';
+          feedbackOverlay = `
+            <div class="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
+              <div class="text-8xl ${animClass}">${overlayEmoji}</div>
+            </div>
+          `;
+        }
+        
+        app.innerHTML = `
+          <div class="min-h-screen p-4 pb-8">
+            <!-- ヘッダー -->
+            <div class="flex justify-between items-center mb-4 px-2">
+              <button onclick="state.screen = 'categorySelect'; render();" class="p-3 rounded-xl text-xl neu-btn-sm">
+                ← 戻る
+              </button>
+              <div class="text-center">
+                <div class="text-lg font-bold text-gray-600">
+                  ${currentCat.icon} ${currentCat.name}
+                </div>
+              </div>
+              <div class="p-3 rounded-xl text-center min-w-[80px] neu-btn-sm">
+                <div class="text-xs text-gray-500">得点</div>
+                <div class="text-xl font-bold text-gray-700">${state.score}</div>
+              </div>
+            </div>
+
+            <!-- 進捗バー -->
+            <div class="mb-6 px-2">
+              <div class="flex justify-between text-sm text-gray-500 mb-2">
+                <span>問題 ${state.currentQ + 1} / ${state.questions.length}</span>
+                ${state.streak >= 2 ? `<span class="text-orange-500 font-bold">🔥 ${state.streak}連続正解！</span>` : ''}
+              </div>
+              <div class="h-4 rounded-full overflow-hidden neu-progress">
+                <div class="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-500" style="width: ${progress}%"></div>
+              </div>
+            </div>
+
+            <!-- キャラクター -->
+            <div class="flex items-center justify-center gap-3 mb-6">
+              <span class="text-5xl ${state.feedback === 'correct' ? 'animate-bounce' : ''}">${character.emoji}</span>
+              <div class="p-3 px-5 rounded-2xl text-lg text-gray-600 neu-btn-sm">
+                ${character.message}
+              </div>
+            </div>
+
+            <!-- 問題カード -->
+            <div class="mb-6 p-6 rounded-3xl neu-card">
+              <div class="text-sm text-gray-400 mb-2">${currentQuestion.era}</div>
+              <h2 class="text-2xl font-bold text-gray-700 leading-relaxed">${currentQuestion.q}</h2>
+            </div>
+
+            <!-- ヒント -->
+            ${hintHTML}
+
+            <!-- 選択肢 -->
+            <div class="space-y-4">
+              ${choicesHTML}
+            </div>
+
+            <!-- フィードバックオーバーレイ -->
+            ${feedbackOverlay}
+          </div>
+        `;
+      }
+    }
+
+    // 初期レンダリング
+    render();
+  </script>
+</body>
+</html>
